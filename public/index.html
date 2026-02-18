@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Competitor Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/introjs.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/intro.min.js"></script>
+  <style>
+    .introjs-tooltip { max-width: 340px; }
+    .fade-in { animation: fadeIn .18s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
+    <div class="flex items-center gap-3 cursor-pointer" onclick="showProjects()">
+      <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </div>
+      <span class="text-lg font-semibold">Competitor Monitor</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="startTour()"
+        class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Tour
+      </button>
+      <button id="new-project-btn" onclick="showCreateModal()"
+        class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+        + New Project
+      </button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-4xl mx-auto px-4 py-8">
+
+    <!-- Projects view -->
+    <div id="view-projects">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="text-xl font-semibold">Projects</h2>
+          <p class="text-sm text-gray-500 mt-0.5" id="project-count"></p>
+        </div>
+      </div>
+      <div id="projects-list" class="space-y-3"></div>
+      <div id="projects-empty" class="hidden text-center py-20">
+        <div class="text-5xl mb-4">🔍</div>
+        <h3 class="text-lg font-medium text-gray-700 mb-2">No projects yet</h3>
+        <p class="text-sm text-gray-500 mb-6">Create your first project to start monitoring competitors.</p>
+        <button onclick="showCreateModal()"
+          class="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700">
+          Create Project
+        </button>
+      </div>
+    </div>
+
+    <!-- Project detail view -->
+    <div id="view-detail" class="hidden">
+      <button onclick="showProjects()"
+        class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6 group">
+        <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        All Projects
+      </button>
+      <div id="detail-header" class="bg-white rounded-xl border border-gray-200 p-6 mb-5"></div>
+
+      <!-- Tabs -->
+      <div id="tab-bar" class="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
+        <button onclick="setTab('pending')" id="tab-pending"
+          class="tab-btn active px-4 py-2 rounded-md text-sm font-medium">Pending Review</button>
+        <button onclick="setTab('approved')" id="tab-approved"
+          class="tab-btn px-4 py-2 rounded-md text-sm font-medium text-gray-500">Approved</button>
+        <button onclick="setTab('rejected')" id="tab-rejected"
+          class="tab-btn px-4 py-2 rounded-md text-sm font-medium text-gray-500">Rejected</button>
+        <button onclick="setTab('alerts')" id="tab-alerts"
+          class="tab-btn px-4 py-2 rounded-md text-sm font-medium text-gray-500">Alerts</button>
+      </div>
+
+      <div id="tab-content" class="fade-in"></div>
+    </div>
+
+  </main>
+
+  <!-- Create Project Modal -->
+  <div id="modal-overlay"
+    class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    onclick="e => { if (e.target === this) hideModal(); }">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onclick="event.stopPropagation()">
+      <h3 class="text-lg font-semibold mb-5">New Project</h3>
+      <form id="create-form" onsubmit="createProject(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
+          <input id="f-name" type="text" placeholder="e.g. My SaaS" required
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Owner Email</label>
+          <input id="f-email" type="email" placeholder="you@company.com" required
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Company Domain</label>
+          <input id="f-domain" type="text" placeholder="yourcompany.com" required
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Keywords
+            <span class="text-gray-400 font-normal">(optional, comma-separated)</span>
+          </label>
+          <input id="f-keywords" type="text" placeholder="e.g. project management, SaaS"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="hideModal()"
+            class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="submit" id="create-submit"
+            class="flex-1 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+            Create Project
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"
+    class="hidden fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg z-50 text-white transition-all">
+  </div>
+
+  <style>
+    .tab-btn { transition: all .15s; }
+    .tab-btn.active { background: white; box-shadow: 0 1px 3px rgba(0,0,0,.1); color: #111827; }
+  </style>
+
+  <script>
+    // ─── state ───────────────────────────────────────────────────────────────────
+    let currentProject = null;
+    let currentTab = 'pending';
+
+    // ─── api ─────────────────────────────────────────────────────────────────────
+    async function api(method, path, body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    // ─── toast ───────────────────────────────────────────────────────────────────
+    function toast(msg, error = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `fixed bottom-6 right-6 px-4 py-3 rounded-lg text-sm shadow-lg z-50 text-white ${error ? 'bg-red-600' : 'bg-gray-900'}`;
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.add('hidden'), 3500);
+    }
+
+    // ─── modal ───────────────────────────────────────────────────────────────────
+    function showCreateModal() {
+      document.getElementById('modal-overlay').classList.remove('hidden');
+      document.getElementById('f-name').focus();
+    }
+    function hideModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+      document.getElementById('create-form').reset();
+    }
+
+    // ─── views ───────────────────────────────────────────────────────────────────
+    function showProjects() {
+      document.getElementById('view-projects').classList.remove('hidden');
+      document.getElementById('view-detail').classList.add('hidden');
+      currentProject = null;
+      loadProjects();
+    }
+
+    function showDetail(project) {
+      currentProject = project;
+      document.getElementById('view-projects').classList.add('hidden');
+      document.getElementById('view-detail').classList.remove('hidden');
+      renderDetailHeader(project);
+      setTab('pending');
+    }
+
+    // ─── projects ────────────────────────────────────────────────────────────────
+    async function loadProjects() {
+      try {
+        const projects = await api('GET', '/projects');
+        const list = document.getElementById('projects-list');
+        const empty = document.getElementById('projects-empty');
+        const count = document.getElementById('project-count');
+        count.textContent = `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
+
+        if (!projects.length) {
+          list.innerHTML = '';
+          list.classList.add('hidden');
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        list.classList.remove('hidden');
+        empty.classList.add('hidden');
+        list.innerHTML = projects.map(p => `
+          <div onclick="openProject('${p.id}')"
+            class="bg-white border border-gray-200 rounded-xl p-5 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all fade-in">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-semibold">${h(p.name)}</h3>
+                <p class="text-sm text-gray-500 mt-0.5">${h(p.companyDomain)} · ${h(p.ownerEmail)}</p>
+              </div>
+              <span class="text-xs font-medium px-2.5 py-1 rounded-full ${statusBadge(p.status)}">
+                ${h(p.status.replace(/_/g, ' '))}
+              </span>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        toast('Failed to load projects', true);
+      }
+    }
+
+    async function openProject(id) {
+      try {
+        const project = await api('GET', `/projects/${id}`);
+        showDetail(project);
+      } catch (e) {
+        toast('Failed to load project', true);
+      }
+    }
+
+    async function createProject(e) {
+      e.preventDefault();
+      const btn = document.getElementById('create-submit');
+      btn.textContent = 'Creating…';
+      btn.disabled = true;
+      const keywords = document.getElementById('f-keywords').value
+        .split(',').map(k => k.trim()).filter(Boolean);
+      try {
+        const project = await api('POST', '/projects', {
+          name: document.getElementById('f-name').value,
+          ownerEmail: document.getElementById('f-email').value,
+          companyDomain: document.getElementById('f-domain').value,
+          ...(keywords.length && { keywords }),
+        });
+        hideModal();
+        toast('Project created — discovering competitors…');
+        openProject(project.id);
+      } catch (e) {
+        toast('Failed to create project', true);
+      } finally {
+        btn.textContent = 'Create Project';
+        btn.disabled = false;
+      }
+    }
+
+    // ─── detail header ───────────────────────────────────────────────────────────
+    function renderDetailHeader(project) {
+      document.getElementById('detail-header').innerHTML = `
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-semibold">${h(project.name)}</h2>
+            <p class="text-sm text-gray-500 mt-1">${h(project.companyDomain)} · ${h(project.ownerEmail)}</p>
+          </div>
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full ${statusBadge(project.status)}">
+              ${h(project.status.replace(/_/g, ' '))}
+            </span>
+            <button onclick="triggerMonitoring()"
+              class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors">
+              ▶ Run Monitor
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function triggerMonitoring() {
+      try {
+        toast('Running monitor…');
+        await api('POST', '/monitoring/run');
+        toast('Monitoring complete!');
+        if (currentTab === 'alerts') loadTabContent();
+      } catch (e) {
+        toast('Monitoring failed', true);
+      }
+    }
+
+    // ─── tabs ─────────────────────────────────────────────────────────────────────
+    function setTab(tab) {
+      currentTab = tab;
+      ['pending', 'approved', 'rejected', 'alerts'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`tab-${t}`).classList.toggle('text-gray-500', t !== tab);
+      });
+      loadTabContent();
+    }
+
+    async function loadTabContent() {
+      const content = document.getElementById('tab-content');
+      content.innerHTML = '<div class="text-center py-12 text-gray-400">Loading…</div>';
+      try {
+        if (currentTab === 'alerts') {
+          const alerts = await api('GET', `/projects/${currentProject.id}/alerts`);
+          renderAlerts(alerts);
+        } else {
+          const all = await api('GET', `/projects/${currentProject.id}/competitors`);
+          renderCompetitors(all.filter(c => c.status === currentTab));
+        }
+      } catch (e) {
+        content.innerHTML = '<div class="text-center py-12 text-red-400">Failed to load</div>';
+      }
+    }
+
+    // ─── competitors ─────────────────────────────────────────────────────────────
+    function renderCompetitors(competitors) {
+      const content = document.getElementById('tab-content');
+      if (!competitors.length) {
+        const msgs = {
+          pending: 'No competitors pending review.',
+          approved: 'No approved competitors yet.',
+          rejected: 'No rejected competitors.',
+        };
+        content.innerHTML = `<div class="text-center py-16 text-gray-400">${msgs[currentTab] || ''}</div>`;
+        return;
+      }
+
+      content.innerHTML = competitors.map(c => `
+        <div class="bg-white border border-gray-200 rounded-xl p-5 mb-3 fade-in">
+          <div class="flex items-start justify-between mb-3 gap-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h4 class="font-medium">${h(c.name || c.domain || 'Unknown')}</h4>
+                ${c.confidence != null
+                  ? `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${Math.round(c.confidence * 100)}% match</span>`
+                  : ''}
+              </div>
+              ${c.domain ? `<p class="text-sm text-gray-500 mt-0.5 truncate">${h(c.domain)}</p>` : ''}
+            </div>
+            ${currentTab === 'pending' ? `
+              <div class="flex gap-2 flex-shrink-0">
+                <button onclick="patchCompetitor('${c.id}','approved')"
+                  class="text-sm bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                  Approve
+                </button>
+                <button onclick="patchCompetitor('${c.id}','rejected')"
+                  class="text-sm bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg font-medium transition-colors">
+                  Reject
+                </button>
+              </div>
+            ` : ''}
+          </div>
+          ${c.pages && c.pages.length ? `
+            <div class="mt-3 pt-3 border-t border-gray-100">
+              <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                Tracked Pages (${c.pages.length})
+              </p>
+              <div class="space-y-1.5">
+                ${c.pages.map(p => `
+                  <div class="flex items-center gap-2 text-sm">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0 ${p.isActive ? 'bg-green-400' : 'bg-gray-300'}"></span>
+                    <a href="${h(p.url)}" target="_blank" rel="noopener"
+                      class="text-indigo-600 hover:underline truncate">${h(p.url)}</a>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          ${c.sources && c.sources.length ? `
+            <p class="text-xs text-gray-400 mt-2">via ${h(c.sources.map(s => s.sourceType).join(', '))}</p>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    async function patchCompetitor(id, status) {
+      try {
+        await api('PATCH', `/competitors/${id}`, { status });
+        toast(`Competitor ${status}`);
+        loadTabContent();
+      } catch (e) {
+        toast(`Failed to ${status} competitor`, true);
+      }
+    }
+
+    // ─── alerts ──────────────────────────────────────────────────────────────────
+    function renderAlerts(alerts) {
+      const content = document.getElementById('tab-content');
+      if (!alerts.length) {
+        content.innerHTML = `
+          <div class="text-center py-16 text-gray-400">
+            <div class="text-4xl mb-3">🔔</div>
+            <p>No alerts yet.</p>
+            <p class="text-sm mt-1">Alerts appear here when monitored pages change.</p>
+          </div>`;
+        return;
+      }
+
+      content.innerHTML = alerts.map(a => `
+        <div class="bg-white border border-gray-200 rounded-xl p-5 mb-3 fade-in">
+          <div class="flex items-start justify-between mb-2 gap-4">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${severityBadge(a.severity)}">
+                ${h(a.severity || 'info')}
+              </span>
+              <span class="text-sm font-medium">
+                ${h(a.trackedPage?.competitor?.name || a.trackedPage?.competitor?.domain || 'Unknown')}
+              </span>
+            </div>
+            <span class="text-xs text-gray-400 flex-shrink-0">${timeAgo(a.createdAt)}</span>
+          </div>
+          ${a.summary ? `<p class="text-sm text-gray-700 mb-1">${h(a.summary)}</p>` : ''}
+          ${a.trackedPage?.url
+            ? `<a href="${h(a.trackedPage.url)}" target="_blank" rel="noopener"
+                class="text-xs text-indigo-500 hover:underline">${h(a.trackedPage.url)}</a>`
+            : ''}
+        </div>
+      `).join('');
+    }
+
+    // ─── guided tour ─────────────────────────────────────────────────────────────
+    function startTour() {
+      introJs().setOptions({
+        showProgress: true,
+        showBullets: false,
+        exitOnOverlayClick: true,
+        nextLabel: 'Next →',
+        prevLabel: '← Back',
+        doneLabel: 'Get Started',
+        steps: [
+          {
+            intro: `<strong>Welcome to Competitor Monitor! 👋</strong><br><br>
+              This app automatically discovers your competitors, monitors their websites daily,
+              and alerts you when anything meaningful changes.<br><br>
+              This quick tour walks you through the workflow.`,
+          },
+          {
+            element: document.getElementById('new-project-btn'),
+            intro: `<strong>Step 1 — Create a Project</strong><br><br>
+              Click <em>+ New Project</em> and enter your company domain and keywords.
+              The discovery engine will automatically suggest competitors for you to review.`,
+            position: 'bottom',
+          },
+          {
+            element: document.getElementById('projects-list').children[0] || document.getElementById('projects-list'),
+            intro: `<strong>Your Projects</strong><br><br>
+              Each card represents one product or service you're monitoring.
+              Click a project to open it and manage its competitors.`,
+            position: 'bottom',
+          },
+          {
+            intro: `<strong>Step 2 — Review Competitors</strong><br><br>
+              Inside a project, you'll find the <strong>Pending Review</strong> tab.
+              These are competitors our engine discovered based on your domain and keywords.`,
+          },
+          {
+            intro: `<strong>Step 3 — Approve or Reject</strong><br><br>
+              <strong>Approve</strong> competitors you want to monitor.
+              <strong>Reject</strong> ones that aren't relevant.<br><br>
+              Approved competitors are crawled daily — any significant change triggers an alert.`,
+          },
+          {
+            intro: `<strong>Step 4 — Monitor on Demand</strong><br><br>
+              Use the <strong>▶ Run Monitor</strong> button inside any project to trigger
+              an immediate crawl of all approved pages instead of waiting for the daily run.`,
+          },
+          {
+            intro: `<strong>Step 5 — Check Alerts</strong><br><br>
+              The <strong>Alerts</strong> tab shows every detected change with a severity level:<br>
+              🔴 <strong>High</strong> — major restructure or content overhaul<br>
+              🟡 <strong>Medium</strong> — notable updates<br>
+              🔵 <strong>Low</strong> — minor wording tweaks`,
+          },
+          {
+            intro: `<strong>You're all set! 🚀</strong><br><br>
+              Click <strong>+ New Project</strong>, enter your domain, review the discovered competitors,
+              and let Competitor Monitor do the rest.`,
+          },
+        ],
+      }).start();
+    }
+
+    // ─── helpers ─────────────────────────────────────────────────────────────────
+    function h(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function statusBadge(s) {
+      return { active: 'bg-green-100 text-green-700', discovery_pending: 'bg-yellow-100 text-yellow-700' }[s]
+        || 'bg-gray-100 text-gray-600';
+    }
+
+    function severityBadge(s) {
+      return { high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-blue-100 text-blue-700' }[s]
+        || 'bg-gray-100 text-gray-600';
+    }
+
+    function timeAgo(d) {
+      if (!d) return '';
+      const m = Math.floor((Date.now() - new Date(d)) / 60000);
+      if (m < 60) return `${m}m ago`;
+      if (m < 1440) return `${Math.floor(m / 60)}h ago`;
+      return `${Math.floor(m / 1440)}d ago`;
+    }
+
+    // ─── init ────────────────────────────────────────────────────────────────────
+    loadProjects();
+  </script>
+</body>
+</html>
