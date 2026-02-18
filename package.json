@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "prisma generate && tsc",
-    "vercel-build": "prisma generate && prisma migrate deploy && tsc",
+    "vercel-build": "prisma generate && prisma migrate deploy",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "worker": "tsx src/worker.ts",
