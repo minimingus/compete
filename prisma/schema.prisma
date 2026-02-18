@@ -1,0 +1,101 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+model Project {
+  id            String       @id @default(cuid())
+  name          String
+  ownerEmail    String
+  companyDomain String
+  status        String       @default("discovery_pending") // discovery_pending | active
+  createdAt     DateTime     @default(now())
+  competitors   Competitor[]
+}
+
+model Competitor {
+  id         String             @id @default(cuid())
+  projectId  String
+  name       String?
+  domain     String
+  status     String             @default("suggested") // suggested | approved | rejected
+  confidence Float              @default(0.0)
+  createdAt  DateTime           @default(now())
+  project    Project            @relation(fields: [projectId], references: [id])
+  sources    CompetitorSource[]
+  pages      TrackedPage[]
+
+  @@index([projectId])
+}
+
+model CompetitorSource {
+  id           String     @id @default(cuid())
+  competitorId String
+  title        String
+  url          String
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+
+  @@index([competitorId])
+}
+
+model TrackedPage {
+  id           String     @id @default(cuid())
+  competitorId String
+  url          String
+  label        String
+  isActive     Boolean    @default(false)
+  frequencyMin Int        @default(1440)
+  competitor   Competitor @relation(fields: [competitorId], references: [id])
+  snapshots    Snapshot[]
+  alerts       Alert[]
+
+  @@index([competitorId])
+}
+
+model Snapshot {
+  id            String      @id @default(cuid())
+  trackedPageId String
+  fetchedAt     DateTime    @default(now())
+  statusCode    Int?
+  error         String?
+  contentHash   String
+  textContent   String
+  trackedPage   TrackedPage @relation(fields: [trackedPageId], references: [id])
+
+  @@index([trackedPageId, fetchedAt])
+}
+
+model DiffRecord {
+  id            String   @id @default(cuid())
+  trackedPageId String
+  snapshotOldId String
+  snapshotNewId String
+  diffText      String
+  changeScore   Float
+  createdAt     DateTime @default(now())
+
+  @@index([trackedPageId])
+}
+
+model Alert {
+  id             String      @id @default(cuid())
+  trackedPageId  String
+  diffRecordId   String?
+  createdAt      DateTime    @default(now())
+  changeType     String
+  severity       String
+  summary        String
+  businessImpact String
+  sentVia        String?
+  sentAt         DateTime?
+  status         String      @default("pending") // pending | sent | failed
+  trackedPage    TrackedPage @relation(fields: [trackedPageId], references: [id])
+
+  @@index([trackedPageId])
+}

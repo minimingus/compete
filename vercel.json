@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api" }
+  ],
+  "crons": [
+    {
+      "path": "/monitoring/run",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "competitor-monitor",
+  "version": "0.1.0",
+  "description": "Micro-SaaS competitor change monitoring service",
+  "private": true,
+  "scripts": {
+    "build": "prisma generate && tsc",
+    "vercel-build": "prisma generate && prisma migrate deploy && tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "worker": "tsx src/worker.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
+    "@prisma/adapter-neon": "^5.20.0",
+    "@prisma/client": "^5.20.0",
+    "bullmq": "^5.13.0",
+    "diff-match-patch": "^1.0.5",
+    "fastify": "^4.28.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/node": "^20.14.0",
+    "@vercel/node": "^3.2.0",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}
