@@ -8,6 +8,8 @@ const envSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   CRON_SECRET: z.string().optional(),
   CHANGE_SCORE_THRESHOLD: z.coerce.number().default(0.05),
+  BRAVE_SEARCH_API_KEY: z.string().optional(),
+  SERPER_API_KEY: z.string().optional(),
   // Email config (stub for v1)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
