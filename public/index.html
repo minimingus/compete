@@ -252,11 +252,16 @@
       btn.disabled = true;
       const keywords = document.getElementById('f-keywords').value
         .split(',').map(k => k.trim()).filter(Boolean);
+      const rawDomain = document.getElementById('f-domain').value.trim();
+      const companyDomain = rawDomain
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .replace(/\/.*$/, '');
       try {
         const project = await api('POST', '/projects', {
           name: document.getElementById('f-name').value,
           ownerEmail: document.getElementById('f-email').value,
-          companyDomain: document.getElementById('f-domain').value,
+          companyDomain,
           ...(keywords.length && { keywords }),
         });
         hideModal();
@@ -321,7 +326,8 @@
           renderAlerts(alerts);
         } else {
           const all = await api('GET', `/projects/${currentProject.id}/competitors`);
-          renderCompetitors(all.filter(c => c.status === currentTab));
+          const filterStatus = currentTab === 'pending' ? 'suggested' : currentTab;
+          renderCompetitors(all.filter(c => c.status === filterStatus));
         }
       } catch (e) {
         content.innerHTML = '<div class="text-center py-12 text-red-400">Failed to load</div>';

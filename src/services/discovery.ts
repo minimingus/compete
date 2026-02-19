@@ -165,7 +165,13 @@ async function findCompetitorDomains(
     return [];
   }
 
-  const baseName = companyDomain.replace(/\.(com|io|co|org|net|app|ai)$/, "");
+  // Normalize: strip protocol, www, and path just in case
+  const normalizedDomain = companyDomain
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
+
+  const baseName = normalizedDomain.replace(/\.(com|io|co|org|net|app|ai)$/, "");
   const queries = [
     `${baseName} alternatives`,
     `${baseName} competitors`,
@@ -185,7 +191,7 @@ async function findCompetitorDomains(
   for (const result of allResults) {
     const domain = extractDomain(result.url);
     if (!domain) continue;
-    if (domain === companyDomain) continue;
+    if (domain === normalizedDomain) continue;
     if (DOMAIN_BLOCKLIST.has(domain)) continue;
 
     const entry = domainHits.get(domain) ?? { count: 0, sources: [] };
