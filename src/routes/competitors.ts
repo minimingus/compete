@@ -28,6 +28,12 @@ export async function competitorRoutes(app: FastifyInstance): Promise<void> {
         data: { status },
       });
 
+      // Activate all pages on approve, deactivate all on reject
+      await prisma.trackedPage.updateMany({
+        where: { competitorId: req.params.id },
+        data: { isActive: status === "approved" },
+      });
+
       return competitor;
     }
   );
