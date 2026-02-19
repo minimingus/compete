@@ -1,20 +1,44 @@
 import { DiscoveryStrategy, RawSearchData, StrategyContext, DiscoveredCompetitor } from "../types";
 
-// ── Regex patterns ────────────────────────────────────────────────────────────
+// ── Stop words — common English words that are never product names ─────────────
+const STOP_WORDS = new Set([
+  "the", "best", "top", "great", "good", "our", "for", "and", "with", "in",
+  "on", "at", "by", "as", "is", "an", "a", "from", "to", "of", "or", "but",
+  "if", "not", "that", "this", "it", "we", "you", "they", "here", "also",
+  "most", "more", "when", "where", "which", "there", "your", "their", "both",
+  "new", "free", "better", "popular", "many", "some", "other", "another",
+  "looking", "similar", "great", "perfect", "ideal", "typical", "general",
+  "local", "online", "platform", "marketplace", "website", "site", "app",
+  "service", "tool", "software", "option", "choice", "pick", "way",
+  "selling", "buying", "seller", "buyer",
+  "yes", "no", "get", "make", "take", "see", "read", "learn", "find", "use",
+  "here", "check", "visit", "click", "sign", "start", "join", "try", "buy",
+]);
 
-// "Notion vs Coda"  /  "notion vs. obsidian"
-const VS_PATTERN = /\b([\w][\w\s]{0,24}?)\s+vs\.?\s+([\w][\w\s]{0,24}?)\b/gi;
+// ── Pattern 1: connectors — "such as X, Y, Z" / "can be X, Y, Z" ─────────────
+// Matches comma-separated proper-ish nouns after connecting phrases
+const CONNECTOR_PATTERN =
+  /\b(?:such as|including|include[s]?|can be|like|try|consider|are|use)\s+((?:[A-Z\d][\w]*(?:\s+[A-Z][\w]*)*(?:,\s*)?)+)/g;
 
-// "alternatives: Foo, Bar, Baz"  /  "alternatives to X: ..."
-const ALTERNATIVES_PATTERN =
-  /alternatives(?:\s+to\s+[\w\s]{1,30})?:\s*((?:[\w][\w\s]{0,20}?,?\s*){1,10})/gi;
+// ── Pattern 2: "X vs Y" ───────────────────────────────────────────────────────
+const VS_PATTERN = /\b([A-Z][\w]+(?:\s+[A-Z][\w]+)?)\s+vs\.?\s+([A-Z][\w]+(?:\s+[A-Z][\w]+)?)\b/g;
 
-// Numbered or bulleted list items: "1. Coda"  /  "- Obsidian"  /  "• ClickUp"
-const LIST_ITEM_PATTERN = /^[\s]*(?:\d+\.|[-•*])\s+([\w][\w\s]{0,28}?)\s*$/gm;
+// ── Pattern 3: alternatives/competitors colon list ────────────────────────────
+const COLON_LIST_PATTERN =
+  /\b(?:alternatives?|competitors?|options?)\b[^:]*:\s*((?:[A-Z][\w]+(?:\s+[A-Z][\w]+)*(?:,\s*)?)+)/gi;
+
+// ── Pattern 4: "Name. description" or "Name. ..." — common in PAA answers ─────
+// No ^ anchor so it catches all occurrences, not just line-start
+const NAME_DOT_PATTERN = /\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3})\.\s+(?:[A-Z]|\.\.\.)/g;
+
+// ── Pattern 5: title-case proper nouns in sentences containing context words ──
+// "Amazon and Walmart Marketplace both offer..." → Amazon, Walmart Marketplace
+const CONTEXT_SENTENCE_PATTERN =
+  /[^.!?]*\b(?:alternative|competitor|similar|instead|option|marketplace|platform|sell|selling)\b[^.!?]*/gi;
 
 // ── Domain resolution ─────────────────────────────────────────────────────────
 
-const TLD_CANDIDATES = [".com", ".io", ".app", ".ai", ".co"];
+const TLD_CANDIDATES = [".com", ".io", ".app", ".ai", ".co", ".org", ".net"];
 
 async function resolveToDomain(
   name: string,
@@ -27,17 +51,18 @@ async function resolveToDomain(
 
   if (!slug || slug.length < 2) return null;
 
-  // Pass 1: match against organic result hostnames — zero extra network calls
+  // Pass 1: organic URL hostname scan — zero extra network calls
   for (const r of organicResults) {
     try {
       const host = new URL(r.url).hostname.replace(/^www\./, "");
-      if (host.startsWith(slug) && host.length > slug.length) return host;
+      const hostBase = host.split(".")[0];
+      if (hostBase === slug || host.startsWith(slug + ".")) return host;
     } catch {
-      // skip malformed URLs
+      // skip
     }
   }
 
-  // Pass 2: parallel HEAD probes across TLD candidates
+  // Pass 2: parallel HEAD probes
   const results = await Promise.all(
     TLD_CANDIDATES.map(async (tld) => {
       const domain = `${slug}${tld}`;
@@ -57,6 +82,19 @@ async function resolveToDomain(
   return results.find((r) => r.ok)?.domain ?? null;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isStopWord(name: string): boolean {
+  return STOP_WORDS.has(name.toLowerCase());
+}
+
+function splitCommaList(text: string): string[] {
+  return text
+    .split(/,\s*/)
+    .map((s) => s.trim().replace(/\.$/, ""))
+    .filter((s) => s.length > 1);
+}
+
 // ── Strategy ──────────────────────────────────────────────────────────────────
 
 export const snippetMiningStrategy: DiscoveryStrategy = {
@@ -65,77 +103,110 @@ export const snippetMiningStrategy: DiscoveryStrategy = {
   async run(raw: RawSearchData, ctx: StrategyContext): Promise<DiscoveredCompetitor[]> {
     const nameFreq = new Map<string, number>();
 
-    function recordName(raw: string) {
-      const name = raw.trim().replace(/\s+/g, " ");
+    function record(name: string, weight = 1) {
+      name = name.trim().replace(/\s+/g, " ").replace(/\.$/, "");
       if (!name || name.length < 2 || name.length > 40) return;
+      if (isStopWord(name)) return;
       if (name.toLowerCase().includes(ctx.baseName.toLowerCase())) return;
-      nameFreq.set(name, (nameFreq.get(name) ?? 0) + 1);
+      nameFreq.set(name, (nameFreq.get(name) ?? 0) + weight);
     }
 
-    // ── Mine organic snippets and titles ──────────────────────────────────────
+    // ── Mine organic snippets + titles ──────────────────────────────────────
     for (const result of raw.organicResults) {
       for (const text of [result.snippet, result.title]) {
-        let m: RegExpExecArray | null;
+        if (!text) continue;
 
+        // Connector pattern: "such as X, Y, Z"
+        let m: RegExpExecArray | null;
+        CONNECTOR_PATTERN.lastIndex = 0;
+        while ((m = CONNECTOR_PATTERN.exec(text)) !== null) {
+          for (const part of splitCommaList(m[1])) record(part, 2);
+        }
+
+        // VS pattern
         VS_PATTERN.lastIndex = 0;
         while ((m = VS_PATTERN.exec(text)) !== null) {
-          recordName(m[1]);
-          recordName(m[2]);
+          record(m[1]);
+          record(m[2]);
         }
 
-        ALTERNATIVES_PATTERN.lastIndex = 0;
-        while ((m = ALTERNATIVES_PATTERN.exec(text)) !== null) {
-          for (const part of m[1].split(/,\s*/)) recordName(part);
+        // Colon list: "alternatives: X, Y, Z"
+        COLON_LIST_PATTERN.lastIndex = 0;
+        while ((m = COLON_LIST_PATTERN.exec(text)) !== null) {
+          for (const part of splitCommaList(m[1])) record(part, 2);
         }
 
-        LIST_ITEM_PATTERN.lastIndex = 0;
-        while ((m = LIST_ITEM_PATTERN.exec(text)) !== null) recordName(m[1]);
+        // Name-dot pattern: "Etsy. A marketplace for handmade goods"
+        NAME_DOT_PATTERN.lastIndex = 0;
+        while ((m = NAME_DOT_PATTERN.exec(text)) !== null) {
+          record(m[1], 2);
+        }
+
+        // Context-sentence proper nouns: extract title-case words from sentences
+        // that contain context keywords — catches "Amazon and Walmart both offer..."
+        CONTEXT_SENTENCE_PATTERN.lastIndex = 0;
+        while ((m = CONTEXT_SENTENCE_PATTERN.exec(text)) !== null) {
+          const sentence = m[0];
+          const nounPattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g;
+          let nm: RegExpExecArray | null;
+          while ((nm = nounPattern.exec(sentence)) !== null) record(nm[1], 1);
+        }
       }
     }
 
-    // ── Mine relatedSearches ──────────────────────────────────────────────────
+    // ── Mine relatedSearches ─────────────────────────────────────────────────
+    // relatedSearches like "Whatnot" or "ebay vs mercari" contain product names
     for (const [, extras] of raw.serperExtras) {
       for (const { query } of extras.relatedSearches) {
-        let m: RegExpExecArray | null;
-
-        VS_PATTERN.lastIndex = 0;
-        while ((m = VS_PATTERN.exec(query)) !== null) {
-          recordName(m[1]);
-          recordName(m[2]);
+        // Single or two-word queries that aren't generic are often product names
+        const words = query.trim().split(/\s+/);
+        if (words.length <= 3) {
+          // Remove known filler words and see if what's left looks like a product
+          const cleaned = words
+            .filter((w) => !STOP_WORDS.has(w.toLowerCase()))
+            .filter((w) => !["ebay", ctx.baseName.toLowerCase()].includes(w.toLowerCase()))
+            .join(" ");
+          if (cleaned.length > 1) record(cleaned, 1);
         }
 
-        ALTERNATIVES_PATTERN.lastIndex = 0;
-        while ((m = ALTERNATIVES_PATTERN.exec(query)) !== null) {
-          for (const part of m[1].split(/,\s*/)) recordName(part);
+        VS_PATTERN.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = VS_PATTERN.exec(query)) !== null) {
+          record(m[1]);
+          record(m[2]);
         }
       }
     }
 
-    // ── Mine peopleAlsoAsk snippets ───────────────────────────────────────────
+    // ── Mine peopleAlsoAsk ───────────────────────────────────────────────────
     for (const [, extras] of raw.serperExtras) {
       for (const { snippet } of extras.peopleAlsoAsk) {
         if (!snippet) continue;
+
         let m: RegExpExecArray | null;
+
+        CONNECTOR_PATTERN.lastIndex = 0;
+        while ((m = CONNECTOR_PATTERN.exec(snippet)) !== null) {
+          for (const part of splitCommaList(m[1])) record(part, 2);
+        }
+
+        // PAA answers often list "Name. Description..." — weight higher
+        NAME_DOT_PATTERN.lastIndex = 0;
+        while ((m = NAME_DOT_PATTERN.exec(snippet)) !== null) {
+          record(m[1], 3);
+        }
 
         VS_PATTERN.lastIndex = 0;
         while ((m = VS_PATTERN.exec(snippet)) !== null) {
-          recordName(m[1]);
-          recordName(m[2]);
+          record(m[1]);
+          record(m[2]);
         }
-
-        ALTERNATIVES_PATTERN.lastIndex = 0;
-        while ((m = ALTERNATIVES_PATTERN.exec(snippet)) !== null) {
-          for (const part of m[1].split(/,\s*/)) recordName(part);
-        }
-
-        LIST_ITEM_PATTERN.lastIndex = 0;
-        while ((m = LIST_ITEM_PATTERN.exec(snippet)) !== null) recordName(m[1]);
       }
     }
 
     if (!nameFreq.size) return [];
 
-    // Resolve top-20 candidates to domains in parallel
+    // Resolve top-20 by frequency in parallel
     const maxFreq = Math.max(...nameFreq.values());
     const candidates = [...nameFreq.entries()]
       .sort((a, b) => b[1] - a[1])
