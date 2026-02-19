@@ -10,6 +10,8 @@ const envSchema = z.object({
   CHANGE_SCORE_THRESHOLD: z.coerce.number().default(0.05),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
   SERPER_API_KEY: z.string().optional(),
+  // Comma-separated strategy IDs: "snippet-mining", "url-domain", "llm-extraction"
+  DISCOVERY_STRATEGIES: z.string().default("snippet-mining"),
   // Email config (stub for v1)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
