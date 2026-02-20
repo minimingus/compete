@@ -12,10 +12,16 @@ interface LLMCompetitor {
 }
 
 async function callClaude(prompt: string, apiKey: string): Promise<LLMCompetitor[]> {
+  // Support both direct API keys (sk-ant-api03-*) and OAuth tokens (sk-ant-oat*)
+  const isOAuth = apiKey.includes("-oat");
+  const authHeaders: Record<string, string> = isOAuth
+    ? { "Authorization": `Bearer ${apiKey}` }
+    : { "x-api-key": apiKey };
+
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
+      ...authHeaders,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
@@ -97,8 +103,8 @@ Example format:
     let llmResults: LLMCompetitor[];
     try {
       llmResults = await callClaude(prompt, apiKey);
-    } catch (err) {
-      console.error("[discovery] llm-extraction failed:", err);
+    } catch (err: any) {
+      console.error("[discovery] llm-extraction failed:", err?.message ?? err);
       return [];
     }
 

@@ -34,6 +34,13 @@ const DOMAIN_BLOCKLIST = new Set([
   "crunchbase.com", "pitchbook.com", "ycombinator.com",
   "alternativeto.net", "slant.co", "saasworthy.com",
   "cloudflare.com", "amazonaws.com", "vercel.app",
+  // Review aggregators & analyst firms
+  "gartner.com", "technologyadvice.com", "softwareadvice.com",
+  "pcmag.com", "cnet.com", "zdnet.com", "techradar.com",
+  "businessinsider.com", "entrepreneur.com", "hubspot.com",
+  // Alternatives/comparison sites
+  "alternativeto.net", "slant.co", "saasworthy.com", "getapp.com",
+  "tomsguide.com", "nerdwallet.com",
 ]);
 
 // ── Orchestrator ──────────────────────────────────────────────────────────────
