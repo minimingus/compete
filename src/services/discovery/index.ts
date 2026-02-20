@@ -123,7 +123,7 @@ export async function runDiscovery(input: DiscoveryInput): Promise<void> {
     `[discovery] ${merged.length} competitors: ${merged.map((c) => c.domain).join(", ")}`
   );
 
-  // 7. Persist
+  // 7. Persist — flat creates to avoid Neon implicit transaction issues
   for (const comp of merged) {
     const competitor = await prisma.competitor.create({
       data: {
@@ -132,11 +132,18 @@ export async function runDiscovery(input: DiscoveryInput): Promise<void> {
         domain: comp.domain,
         status: "suggested",
         confidence: comp.confidence,
-        sources: {
-          create: comp.sources.map((s) => ({ title: s.title, url: s.url })),
-        },
       },
     });
+
+    if (comp.sources.length > 0) {
+      await prisma.competitorSource.createMany({
+        data: comp.sources.map((s) => ({
+          competitorId: competitor.id,
+          title: s.title,
+          url: s.url,
+        })),
+      });
+    }
 
     await prisma.trackedPage.createMany({
       data: PAGE_TEMPLATES.map((tpl) => ({
