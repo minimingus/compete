@@ -67,18 +67,15 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!project) return reply.status(404).send({ error: "Project not found" });
 
-      try {
-        await runDiscovery({
-          projectId: project.id,
-          companyDomain: project.companyDomain,
-        });
-      } catch (err: any) {
-        return reply.status(500).send({
-          error: "Discovery failed",
-          message: err?.message ?? String(err),
-          stack: err?.stack?.split("\n").slice(0, 5),
-        });
-      }
+      // Clear existing suggested competitors before re-running so we don't accumulate duplicates
+      await prisma.competitor.deleteMany({
+        where: { projectId: project.id, status: "suggested" },
+      });
+
+      await runDiscovery({
+        projectId: project.id,
+        companyDomain: project.companyDomain,
+      });
 
       return { ok: true };
     }
