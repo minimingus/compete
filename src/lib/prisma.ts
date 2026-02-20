@@ -1,12 +1,14 @@
-import { Pool } from "@neondatabase/serverless";
-import { PrismaNeon } from "@prisma/adapter-neon";
+import { neon } from "@neondatabase/serverless";
+import { PrismaNeonHTTP } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient(): PrismaClient {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaNeon(pool);
+  // HTTP adapter: each query is a fresh stateless HTTP request to Neon.
+  // Avoids WebSocket idle-timeout drops that occur in long-running functions.
+  const sql = neon(process.env.DATABASE_URL!);
+  const adapter = new PrismaNeonHTTP(sql);
   return new PrismaClient({ adapter });
 }
 
