@@ -58,6 +58,24 @@ export async function projectRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  // Re-run competitor discovery on an existing project
+  app.post<{ Params: { id: string } }>(
+    "/projects/:id/rediscover",
+    async (req, reply) => {
+      const project = await prisma.project.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!project) return reply.status(404).send({ error: "Project not found" });
+
+      await runDiscovery({
+        projectId: project.id,
+        companyDomain: project.companyDomain,
+      });
+
+      return { ok: true };
+    }
+  );
+
   // List all projects
   app.get("/projects", async () => {
     return prisma.project.findMany({
