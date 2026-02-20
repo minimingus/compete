@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance } from "fastify";
+import { ZodError } from "zod";
 import { projectRoutes } from "./routes/projects";
 import { competitorRoutes } from "./routes/competitors";
 import { monitoringRoutes } from "./routes/monitoring";
@@ -9,6 +10,23 @@ export async function buildApp(): Promise<FastifyInstance> {
   if (_app) return _app;
 
   const app = Fastify({ logger: true });
+
+  // Global error handler — turns Zod + Prisma errors into clean HTTP responses
+  app.setErrorHandler((err, _req, reply) => {
+    if (err instanceof ZodError) {
+      return reply.status(400).send({
+        statusCode: 400,
+        error: "Bad Request",
+        issues: err.issues,
+      });
+    }
+    app.log.error(err);
+    return reply.status(err.statusCode ?? 500).send({
+      statusCode: err.statusCode ?? 500,
+      error: err.name ?? "Internal Server Error",
+      message: err.message,
+    });
+  });
 
   // Root + health check
   app.get("/", async () => ({
